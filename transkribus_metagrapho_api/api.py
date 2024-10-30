@@ -104,7 +104,7 @@ class TranskribusMetagraphoAPI:
                     raise RuntimeError(
                         "Refresh token is expired, need to reauthenticate."
                     )
-                logging.debug("Refresh access token.")
+                logging.info("Refresh access token.")
                 r = requests.post(
                     f"{self.BASE_URL}/token",
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -132,7 +132,7 @@ class TranskribusMetagraphoAPI:
 
         def revoke(self) -> bool:
             """Revoke access token."""
-            logging.debug("Revoke access token.")
+            logging.info("Revoke access token.")
             r = requests.post(
                 f"{self.BASE_URL}/logout",
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -155,7 +155,7 @@ class TranskribusMetagraphoAPI:
         @classmethod
         def obtain(cls: Type[T], username: str, password: str) -> T:
             """Obtain access token."""
-            logging.debug("Obtain access token.")
+            logging.info("Obtain access token.")
             r = requests.post(
                 f"{cls.BASE_URL}/token",
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -218,7 +218,7 @@ class TranskribusMetagraphoAPI:
         process_ids: Dict[int, Path] = {}
         for image_path in args:
             try:
-                logging.debug("Send {image_path} to processing endpoint.")
+                logging.info(f"Send {image_path.name} to processing endpoint.")
                 process_ids[
                     self.process(
                         image_path,
@@ -244,7 +244,7 @@ class TranskribusMetagraphoAPI:
             for process_id, image_path in process_ids.items():
                 try:
                     status = self.status(process_id)
-                    logging.debug(f"{image_path} [{process_id}] {status}")
+                    logging.info(f"{image_path.parent.name}/{image_path.stem} [process {process_id}] {status}")
                     match status.upper():
                         case "FINISHED":
                             if mode == "alto":
@@ -268,10 +268,11 @@ class TranskribusMetagraphoAPI:
                                 break
                 except Exception as e:
                     logging.error(
-                        "An error occurred while checking the state and retriving "
+                        "An error occurred while checking the state and retrieving "
                         + f"results for {image_path}.",
                         exc_info=e,
                     )
+                    time.sleep(wait)
                     to_del.append(process_id)
 
             for process_id in to_del:
@@ -280,7 +281,7 @@ class TranskribusMetagraphoAPI:
         return xmls
 
     def alto(self, process_id: int) -> str:
-        """Retrive ALTO XML.
+        """Retrieve ALTO XML.
 
         Args:
          * process_id: a process id
@@ -288,7 +289,7 @@ class TranskribusMetagraphoAPI:
         Returns:
          * ALTO XML
         """
-        logging.debug(f"Get ALTO XML for {process_id}.")
+        logging.info(f"Get ALTO XML for {process_id}.")
         r = requests.get(
             f"{self.BASE_URL}/processes/{process_id}/alto",
             headers={"Authorization": self.access_token.get_auth_token()},
@@ -296,7 +297,7 @@ class TranskribusMetagraphoAPI:
 
         logging.debug(f"Response: {r.text}")
         if r.status_code == 401:
-            logging.debug("Lost authorization, refreshing token.")
+            logging.info("Lost authorization, refreshing token.")
             self.access_token.refresh(True)
             return self.alto(process_id)
 
@@ -314,7 +315,7 @@ class TranskribusMetagraphoAPI:
         return self.access_token.revoke()
 
     def page(self, process_id: int) -> str:
-        """Retrive PAGE XML.
+        """Retrieve PAGE XML.
 
         Args:
          * process_id: a process id
@@ -322,7 +323,7 @@ class TranskribusMetagraphoAPI:
         Returns:
          * PAGE XML
         """
-        logging.debug(f"Get PAGE-XML for {process_id}.")
+        logging.info(f"Get PAGE-XML for {process_id}.")
         r = requests.get(
             f"{self.BASE_URL}/processes/{process_id}/page",
             headers={"Authorization": self.access_token.get_auth_token()},
@@ -330,7 +331,7 @@ class TranskribusMetagraphoAPI:
 
         logging.debug(f"Response: {r.text}")
         if r.status_code == 401:
-            logging.debug("Lost authorization, refreshing token.")
+            logging.info("Lost authorization, refreshing token.")
             self.access_token.refresh(True)
             return self.page(process_id)
 
@@ -402,14 +403,14 @@ class TranskribusMetagraphoAPI:
 
         if image_path.stat().st_size > 19000000:
             logging.debug(
-                "Open image {image_path}, convert (>19MB) and base64 encode it."
+                f"Open image {image_path}, convert (>19MB) and base64 encode it."
             )
             image = Image.open(image_path)
             buffered = BytesIO()
             image.save(buffered, format="JPEG", quality=95)
             img_base64 = base64.b64encode(buffered.getvalue()).decode()
         else:
-            logging.debug("Open image {image_path} (<19MB) and base64 encode it.")
+            logging.debug(f"Open image {image_path} (<19MB) and base64 encode it.")
             img_base64 = base64.b64encode(open(image_path, "rb").read()).decode()
 
         r = requests.post(
@@ -426,7 +427,7 @@ class TranskribusMetagraphoAPI:
 
         logging.debug(f"Response: {r.text}")
         if r.status_code == 401:
-            logging.debug("Lost authorization, refreshing token.")
+            logging.info("Lost authorization, refreshing token.")
             self.access_token.refresh(True)
             return self.process(
                 image_path,
@@ -450,7 +451,7 @@ class TranskribusMetagraphoAPI:
         Returns:
          * JSON response from the API
         """
-        logging.debug("Check status for {process_id}.")
+        logging.debug(f"Check status for process {process_id}.")
         r = requests.get(
             f"{self.BASE_URL}/processes/{process_id}",
             headers={"Authorization": self.access_token.get_auth_token()},
@@ -458,7 +459,7 @@ class TranskribusMetagraphoAPI:
 
         logging.debug(f"Response: {r.text}")
         if r.status_code == 401:
-            logging.debug("Lost authorization, refreshing token.")
+            logging.info("Lost authorization, refreshing token.")
             self.access_token.refresh(True)
             return self.status(process_id)
 
